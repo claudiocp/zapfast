@@ -5868,6 +5868,7 @@ impl App {
     fn request_attention(&mut self, ctx: &egui::Context) {
         if std::mem::take(&mut self.wants_attention)
             && cfg!(target_os = "linux")
+            && !gnome_desktop()
             && !self.window_hidden
             && !self.window_focused
             && ctx.input(|input| input.viewport().focused) != Some(true)
@@ -6715,6 +6716,17 @@ impl Delivery {
 /// mentions, so a chat set to no sound stays silent. Otherwise a group message
 /// that mentions or answers us plays the mention sound, and other group
 /// messages stay silent while group sounds are off.
+/// Whether the desktop is GNOME, which turns a window's request for
+/// attention into a "“ZapFast” is ready" notice of its own on every message,
+/// on top of the message's notification, instead of marking the taskbar.
+fn gnome_desktop() -> bool {
+    std::env::var("XDG_CURRENT_DESKTOP").is_ok_and(|desktop| {
+        desktop
+            .split(':')
+            .any(|name| name.eq_ignore_ascii_case("GNOME"))
+    })
+}
+
 fn notification_sound(
     settings: &Settings,
     chat_sound: Option<NotificationSound>,
