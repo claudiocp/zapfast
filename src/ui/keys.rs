@@ -385,6 +385,9 @@ fn video_keys(app: &mut App, ctx: &egui::Context) {
         if input.consume_key(Modifiers::NONE, Key::M) {
             actions.push(Action::ToggleVideoSound);
         }
+        if input.consume_key(Modifiers::NONE, Key::S) {
+            actions.push(Action::CycleVideoSpeed);
+        }
         if input.consume_key(Modifiers::NONE, Key::ArrowLeft) {
             actions.extend(jump(-5.0));
         }
