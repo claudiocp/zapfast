@@ -6707,6 +6707,22 @@ impl Delivery {
     }
 }
 
+/// Whether `desktop`, an `XDG_CURRENT_DESKTOP` value, names GNOME. GNOME
+/// turns a window's request for attention into a "“ZapFast” is ready" notice
+/// of its own on every message, on top of the message's notification,
+/// instead of marking the taskbar (#466).
+fn is_gnome(desktop: Option<&str>) -> bool {
+    desktop.is_some_and(|desktop| {
+        desktop
+            .split(':')
+            .any(|name| name.eq_ignore_ascii_case("GNOME"))
+    })
+}
+
+fn gnome_desktop() -> bool {
+    is_gnome(std::env::var("XDG_CURRENT_DESKTOP").ok().as_deref())
+}
+
 /// Whether an incoming message in this chat warrants a desktop notification.
 ///
 /// Archived chats stay silent, direct and group alike, and speak up again once
@@ -6716,17 +6732,6 @@ impl Delivery {
 /// mentions, so a chat set to no sound stays silent. Otherwise a group message
 /// that mentions or answers us plays the mention sound, and other group
 /// messages stay silent while group sounds are off.
-/// Whether the desktop is GNOME, which turns a window's request for
-/// attention into a "“ZapFast” is ready" notice of its own on every message,
-/// on top of the message's notification, instead of marking the taskbar.
-fn gnome_desktop() -> bool {
-    std::env::var("XDG_CURRENT_DESKTOP").is_ok_and(|desktop| {
-        desktop
-            .split(':')
-            .any(|name| name.eq_ignore_ascii_case("GNOME"))
-    })
-}
-
 fn notification_sound(
     settings: &Settings,
     chat_sound: Option<NotificationSound>,
