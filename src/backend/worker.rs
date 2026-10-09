@@ -723,6 +723,7 @@ pub async fn run(
         sticker_download_failed: HashSet::new(),
         sticker_resume: false,
         sticker_clicked: HashSet::new(),
+        sticker_retried: HashSet::new(),
         favorites_pushing: false,
         favorites_again: false,
         favorites_recovered,
@@ -1151,6 +1152,9 @@ struct Worker {
     /// Chat stickers clicked while a picker download of theirs was in
     /// flight, downloaded again, re-upload and all, if that one fails.
     sticker_clicked: HashSet<(ChatId, String)>,
+    /// Those clicked stickers downloading again; one that arrives refreshes
+    /// the picker's shelves, as a picker download would.
+    sticker_retried: HashSet<(ChatId, String)>,
     /// Whether favorite changes are on their way to the phone.
     favorites_pushing: bool,
     /// More favorite changes arrived while a push was running.
@@ -3587,6 +3591,7 @@ impl Worker {
         self.edits.clear();
         self.sticker_download_failed.clear();
         self.sticker_clicked.clear();
+        self.sticker_retried.clear();
         self.stop_bot().await;
         if let Err(error) = self.archive.clear() {
             log::warn!("could not clear the archive: {error}");
@@ -8692,6 +8697,7 @@ impl Worker {
         let key = (chat.clone(), id.clone());
         let for_picker = self.sticker_downloads.remove(&key);
         let clicked = self.sticker_clicked.remove(&key);
+        let retried = self.sticker_retried.remove(&key);
         if for_picker && let Err(error) = &result {
             if sticker_pace::rate_limited(error) {
                 log::warn!("sticker downloads paused: the server asked to slow down");
@@ -8700,6 +8706,7 @@ impl Worker {
             } else if clicked {
                 // Asked for in its chat meanwhile: try again as that click,
                 // which may ask the phone to re-upload it.
+                self.sticker_retried.insert(key);
                 self.download(chat, id);
                 self.fetch_missing_stickers();
                 return;
@@ -8707,12 +8714,16 @@ impl Worker {
                 self.sticker_download_failed.insert(key);
             }
         }
+        let result_ok = result.is_ok();
         self.emit(Event::Media {
             card,
             chat,
             message: id,
             result,
         });
+        if retried && !for_picker && result_ok {
+            self.emit_stickers();
+        }
         if for_picker {
             // The next missing ones take the freed places.
             self.fetch_missing_stickers();
@@ -16390,6 +16401,7 @@ mod receipt_tests {
             sticker_download_failed: HashSet::new(),
             sticker_resume: false,
             sticker_clicked: HashSet::new(),
+            sticker_retried: HashSet::new(),
             favorites_pushing: false,
             favorites_again: false,
             favorites_recovered: true,
