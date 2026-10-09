@@ -721,6 +721,7 @@ pub async fn run(
         sticker_pace: Default::default(),
         sticker_failed: HashSet::new(),
         sticker_download_failed: HashSet::new(),
+        sticker_resume: false,
         favorites_pushing: false,
         favorites_again: false,
         favorites_recovered,
@@ -825,6 +826,7 @@ pub async fn run(
                 worker.retry_avatars();
                 worker.pump_group_info();
                 worker.pump_favorite_stickers();
+                worker.resume_sticker_fetches();
                 worker.pump_read_sync();
                 worker.pump_favorite_chats();
                 worker.pump_poll_votes();
@@ -1142,6 +1144,9 @@ struct Worker {
     /// Chat stickers whose picker download failed this session, not asked
     /// again.
     sticker_download_failed: HashSet<(ChatId, String)>,
+    /// The server paused picker downloads with some left to fetch; the tick
+    /// fetches them once the pause is over.
+    sticker_resume: bool,
     /// Whether favorite changes are on their way to the phone.
     favorites_pushing: bool,
     /// More favorite changes arrived while a push was running.
@@ -3576,6 +3581,7 @@ impl Worker {
         // later write its record into the archive this logout is about to clear.
         self.shutdown_call().await;
         self.edits.clear();
+        self.sticker_download_failed.clear();
         self.stop_bot().await;
         if let Err(error) = self.archive.clear() {
             log::warn!("could not clear the archive: {error}");
@@ -6946,6 +6952,7 @@ impl Worker {
                     Err(error) if sticker_pace::rate_limited(&error) => {
                         log::warn!("sticker downloads paused: the server asked to slow down");
                         self.sticker_pace.limited(Instant::now());
+                        self.sticker_resume = true;
                     }
                     Err(_error) => {
                         log::warn!("could not fetch a sticker");
@@ -8676,6 +8683,7 @@ impl Worker {
             if sticker_pace::rate_limited(error) {
                 log::warn!("sticker downloads paused: the server asked to slow down");
                 self.sticker_pace.limited(Instant::now());
+                self.sticker_resume = true;
             } else {
                 self.sticker_download_failed
                     .insert((chat.clone(), id.clone()));
@@ -8695,6 +8703,14 @@ impl Worker {
             if self.sticker_downloads.is_empty() {
                 self.emit_stickers();
             }
+        }
+    }
+
+    /// Fetches the stickers a rate limit left behind, once its pause is over.
+    fn resume_sticker_fetches(&mut self) {
+        if self.sticker_resume && self.sticker_pace.open(Instant::now()) {
+            self.sticker_resume = false;
+            self.fetch_missing_stickers();
         }
     }
 
@@ -8751,7 +8767,10 @@ impl Worker {
                 let _ = commands.send(Command::StickerFetched { hash, result });
             });
         }
-        match self.archive.stickers_without_file(STICKER_FETCH_LIMIT) {
+        // Rows that failed this session are skipped below; asking for that
+        // many more keeps them from filling the window and hiding the rest.
+        let limit = STICKER_FETCH_LIMIT + self.sticker_download_failed.len();
+        match self.archive.stickers_without_file(limit) {
             Ok(list) => {
                 for key in list {
                     if self.sticker_downloads.len() >= sticker_pace::IN_FLIGHT {
@@ -16340,6 +16359,7 @@ mod receipt_tests {
             sticker_pace: Default::default(),
             sticker_failed: HashSet::new(),
             sticker_download_failed: HashSet::new(),
+            sticker_resume: false,
             favorites_pushing: false,
             favorites_again: false,
             favorites_recovered: true,
