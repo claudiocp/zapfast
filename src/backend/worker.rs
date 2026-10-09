@@ -722,6 +722,7 @@ pub async fn run(
         sticker_failed: HashSet::new(),
         sticker_download_failed: HashSet::new(),
         sticker_resume: false,
+        sticker_clicked: HashSet::new(),
         favorites_pushing: false,
         favorites_again: false,
         favorites_recovered,
@@ -1147,6 +1148,9 @@ struct Worker {
     /// The server paused picker downloads with some left to fetch; the tick
     /// fetches them once the pause is over.
     sticker_resume: bool,
+    /// Chat stickers clicked while a picker download of theirs was in
+    /// flight, downloaded again, re-upload and all, if that one fails.
+    sticker_clicked: HashSet<(ChatId, String)>,
     /// Whether favorite changes are on their way to the phone.
     favorites_pushing: bool,
     /// More favorite changes arrived while a push was running.
@@ -3582,6 +3586,7 @@ impl Worker {
         self.shutdown_call().await;
         self.edits.clear();
         self.sticker_download_failed.clear();
+        self.sticker_clicked.clear();
         self.stop_bot().await;
         if let Err(error) = self.archive.clear() {
             log::warn!("could not clear the archive: {error}");
@@ -8380,6 +8385,12 @@ impl Worker {
     /// no size limit; every download's deadline grows with its size.
     fn download_media(&mut self, chat: ChatId, id: String, card: Option<usize>, manual: bool) {
         if !self.downloads.insert((chat.clone(), id.clone(), card)) {
+            // A click while only the picker is fetching it: the picker's
+            // download skips the re-upload, so remember to ask if it fails.
+            let key = (chat, id);
+            if card.is_none() && self.sticker_downloads.contains(&key) {
+                self.sticker_clicked.insert(key);
+            }
             return;
         }
         let Some(client) = self.client.clone() else {
@@ -8678,15 +8689,22 @@ impl Worker {
             let _ = self.archive.put_media_path_at(&chat, &id, card, Some(path));
         }
         self.downloads.remove(&(chat.clone(), id.clone(), card));
-        let for_picker = self.sticker_downloads.remove(&(chat.clone(), id.clone()));
+        let key = (chat.clone(), id.clone());
+        let for_picker = self.sticker_downloads.remove(&key);
+        let clicked = self.sticker_clicked.remove(&key);
         if for_picker && let Err(error) = &result {
             if sticker_pace::rate_limited(error) {
                 log::warn!("sticker downloads paused: the server asked to slow down");
                 self.sticker_pace.limited(Instant::now());
                 self.sticker_resume = true;
+            } else if clicked {
+                // Asked for in its chat meanwhile: try again as that click,
+                // which may ask the phone to re-upload it.
+                self.download(chat, id);
+                self.fetch_missing_stickers();
+                return;
             } else {
-                self.sticker_download_failed
-                    .insert((chat.clone(), id.clone()));
+                self.sticker_download_failed.insert(key);
             }
         }
         self.emit(Event::Media {
@@ -8704,6 +8722,12 @@ impl Worker {
                 self.emit_stickers();
             }
         }
+    }
+
+    /// Picker downloads in flight, recent and chat stickers together, which
+    /// share one limit.
+    fn picker_downloads(&self) -> usize {
+        self.sticker_fetches.len() + self.sticker_downloads.len()
     }
 
     /// Fetches the stickers a rate limit left behind, once its pause is over.
@@ -8733,7 +8757,7 @@ impl Worker {
         };
         let dir = self.dirs.sticker_cache_dir();
         for sticker in phone.into_iter().filter(|sticker| sticker.path.is_none()) {
-            if self.sticker_fetches.len() >= sticker_pace::IN_FLIGHT {
+            if self.picker_downloads() >= sticker_pace::IN_FLIGHT {
                 break;
             }
             if self.sticker_failed.contains(&sticker.hash)
@@ -8773,10 +8797,15 @@ impl Worker {
         match self.archive.stickers_without_file(limit) {
             Ok(list) => {
                 for key in list {
-                    if self.sticker_downloads.len() >= sticker_pace::IN_FLIGHT {
+                    if self.picker_downloads() >= sticker_pace::IN_FLIGHT {
                         break;
                     }
-                    if self.sticker_download_failed.contains(&key)
+                    // One already downloading for its chat is not the picker's.
+                    let downloading =
+                        self.downloads
+                            .contains(&(key.0.clone(), key.1.clone(), None));
+                    if downloading
+                        || self.sticker_download_failed.contains(&key)
                         || !self.sticker_downloads.insert(key.clone())
                     {
                         continue;
@@ -16360,6 +16389,7 @@ mod receipt_tests {
             sticker_failed: HashSet::new(),
             sticker_download_failed: HashSet::new(),
             sticker_resume: false,
+            sticker_clicked: HashSet::new(),
             favorites_pushing: false,
             favorites_again: false,
             favorites_recovered: true,
