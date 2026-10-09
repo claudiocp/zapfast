@@ -1,0 +1,38 @@
+# Builds this local branch as an ad-hoc signed universal ZapFast.app.
+name: Local macOS build
+
+on:
+  push:
+    branches: [local-mac]
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - name: Build both architectures
+        run: |
+          cargo build --locked --release --target aarch64-apple-darwin
+          cargo build --locked --release --target x86_64-apple-darwin
+      - name: App bundle
+        run: |
+          mkdir -p universal dist
+          lipo -create \
+            target/aarch64-apple-darwin/release/zapfast \
+            target/x86_64-apple-darwin/release/zapfast \
+            -output universal/zapfast
+          version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
+          bash packaging/macos/bundle.sh universal/zapfast dist/ZapFast.app "$version"
+          ditto -c -k --keepParent dist/ZapFast.app dist/ZapFast-local-macos-universal.zip
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ZapFast-local-macos-universal
+          path: dist/ZapFast-local-macos-universal.zip
+          if-no-files-found: error
