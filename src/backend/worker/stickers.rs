@@ -1307,19 +1307,16 @@ mod tests {
             },
             animated: false,
         };
-        let raw = wa::Message {
-            sticker_message: MessageField::some(wa::message::StickerMessage {
-                direct_path: Some(format!("/v/t62.15575-24/{id}.enc")),
-                media_key: Some(vec![1; 32]),
-                file_enc_sha256: Some(vec![2; 32]),
-                file_sha256: Some(vec![3; 32]),
-                file_length: Some(100),
-                mimetype: Some("image/webp".into()),
-                ..Default::default()
-            }),
-            ..Default::default()
-        }
-        .encode_to_vec();
+        let mut sticker = wa::message::StickerMessage::default();
+        sticker.direct_path = Some(format!("/v/t62.15575-24/{id}.enc"));
+        sticker.media_key = Some(vec![1; 32]);
+        sticker.file_enc_sha256 = Some(vec![2; 32]);
+        sticker.file_sha256 = Some(vec![3; 32]);
+        sticker.file_length = Some(100);
+        sticker.mimetype = Some("image/webp".into());
+        let mut raw = wa::Message::default();
+        raw.sticker_message = MessageField::some(sticker);
+        let raw = raw.encode_to_vec();
         worker
             .archive
             .insert_message(&message, Some(&raw))
@@ -1336,7 +1333,7 @@ mod tests {
         std::sync::mpsc::Receiver<Event>,
     ) {
         let (mut worker, root, events, commands) = sticker_worker();
-        let store = whatsapp_rust::store::SqliteStore::new(
+        let store = whatsapp_rust::store::SqliteStore::open(
             &root.path().join("session.db").to_string_lossy(),
         )
         .await
@@ -1423,7 +1420,7 @@ mod tests {
             .iter()
             .map(|(_, id)| id.as_str())
             .collect();
-        assert_eq!(started, ["s2", "s3"].into());
+        assert_eq!(started, HashSet::from(["s2", "s3"]));
     }
 
     #[tokio::test]
@@ -1492,16 +1489,14 @@ mod tests {
     async fn recent_and_chat_stickers_share_one_limit() {
         let (mut worker, _root, _bot, _commands, _events) = picker_worker().await;
         for (index, hash) in ["r1", "r2", "r3"].iter().enumerate() {
-            let raw = wa::StickerMetadata {
-                direct_path: Some(format!("/v/t62.15575-24/{hash}.enc")),
-                media_key: Some(vec![1; 32]),
-                file_enc_sha256: Some(vec![2; 32]),
-                file_sha256: Some(vec![3; 32]),
-                file_length: Some(100),
-                mimetype: Some("image/webp".into()),
-                ..Default::default()
-            }
-            .encode_to_vec();
+            let mut raw = wa::StickerMetadata::default();
+            raw.direct_path = Some(format!("/v/t62.15575-24/{hash}.enc"));
+            raw.media_key = Some(vec![1; 32]);
+            raw.file_enc_sha256 = Some(vec![2; 32]);
+            raw.file_sha256 = Some(vec![3; 32]);
+            raw.file_length = Some(100);
+            raw.mimetype = Some("image/webp".into());
+            let raw = raw.encode_to_vec();
             worker
                 .archive
                 .upsert_phone_sticker(hash, &raw, index as i64, 0.5)
