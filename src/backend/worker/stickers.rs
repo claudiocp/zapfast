@@ -1302,6 +1302,7 @@ mod tests {
                 size: 100,
                 width: Some(512),
                 height: Some(512),
+                album: None,
                 path: None,
                 state: MediaState::Idle,
             },
@@ -1525,6 +1526,7 @@ mod tests {
         assert!(worker.sticker_downloads.contains(&key));
         worker
             .handle_command(Command::Download {
+                manual: true,
                 card: None,
                 chat: chat.clone(),
                 message: "s1".into(),
@@ -1561,6 +1563,7 @@ mod tests {
         worker.fetch_missing_stickers();
         worker
             .handle_command(Command::Download {
+                manual: true,
                 card: None,
                 chat: chat.clone(),
                 message: "s1".into(),
@@ -1592,6 +1595,47 @@ mod tests {
             })
             .await;
         assert_eq!(listed(&events), 1);
+    }
+
+    /// The paced backlog takes a while to come in, so the shelves refresh
+    /// every few arrivals instead of only once it is all in, and once more
+    /// when the last one lands.
+    #[tokio::test]
+    async fn the_shelves_refresh_every_few_picker_arrivals() {
+        let (mut worker, root, _bot, _commands, events) = picker_worker().await;
+        let chat = "a@s.whatsapp.net".to_owned();
+        for index in 0..10 {
+            sent_sticker_without_file(&worker, &chat, &format!("s{index}"), index);
+        }
+        worker.fetch_missing_stickers();
+        let mut refreshed = Vec::new();
+        let mut arrivals = 0;
+        while let Some((chat, id)) = worker.sticker_downloads.iter().next().cloned() {
+            let file = root.path().join(format!("{id}.webp"));
+            std::fs::write(&file, b"webp").unwrap();
+            events.try_iter().for_each(drop);
+            worker
+                .handle_command(Command::Downloaded {
+                    card: None,
+                    chat,
+                    id,
+                    result: Ok(file),
+                })
+                .await;
+            arrivals += 1;
+            if events
+                .try_iter()
+                .any(|event| matches!(event, Event::Stickers { .. }))
+            {
+                refreshed.push(arrivals);
+            }
+        }
+        assert_eq!(arrivals, 10);
+        assert_eq!(
+            refreshed,
+            vec![SHELF_REFRESH_EVERY, 2 * SHELF_REFRESH_EVERY, 10],
+            "every {SHELF_REFRESH_EVERY} arrivals, and when the last lands"
+        );
     }
 
     #[tokio::test]

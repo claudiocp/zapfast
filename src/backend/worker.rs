@@ -82,6 +82,12 @@ const THUMBNAIL_SIDE: u32 = 96;
 const PROFILE_PICTURE_SIDE: u32 = 640;
 /// Sticker download batch size for the picker.
 const STICKER_FETCH_LIMIT: usize = 40;
+/// Picker stickers that arrive between two refreshes of its shelves while
+/// more are still on their way. The backlog is paced, two at a time and
+/// slower after a rate limit, so waiting for all of it left the shelves
+/// stale for minutes; refreshing on every arrival reshuffled Recent under
+/// the reader (#165).
+const SHELF_REFRESH_EVERY: usize = 4;
 /// How many starred messages the list shows.
 const STARRED_LIMIT: usize = 200;
 const ATTACHMENT_LIMIT_ERROR: &str =
@@ -724,6 +730,7 @@ pub async fn run(
         sticker_resume: false,
         sticker_clicked: HashSet::new(),
         sticker_retried: HashSet::new(),
+        sticker_arrivals: 0,
         favorites_pushing: false,
         favorites_again: false,
         favorites_recovered,
@@ -1155,6 +1162,8 @@ struct Worker {
     /// Those clicked stickers downloading again; one that arrives refreshes
     /// the picker's shelves, as a picker download would.
     sticker_retried: HashSet<(ChatId, String)>,
+    /// Picker stickers that arrived since the shelves were last sent.
+    sticker_arrivals: usize,
     /// Whether favorite changes are on their way to the phone.
     favorites_pushing: bool,
     /// More favorite changes arrived while a push was running.
@@ -3592,6 +3601,7 @@ impl Worker {
         self.sticker_download_failed.clear();
         self.sticker_clicked.clear();
         self.sticker_retried.clear();
+        self.sticker_arrivals = 0;
         self.stop_bot().await;
         if let Err(error) = self.archive.clear() {
             log::warn!("could not clear the archive: {error}");
@@ -6953,13 +6963,13 @@ impl Worker {
             }
             Command::StickerFetched { hash, result } => {
                 self.sticker_fetches.remove(&hash);
-                match result {
+                match &result {
                     Ok(path) => {
-                        if self.archive.set_sticker_path(&hash, &path).is_err() {
+                        if self.archive.set_sticker_path(&hash, path).is_err() {
                             log::warn!("could not file a sticker");
                         }
                     }
-                    Err(error) if sticker_pace::rate_limited(&error) => {
+                    Err(error) if sticker_pace::rate_limited(error) => {
                         log::warn!("sticker downloads paused: the server asked to slow down");
                         self.sticker_pace.limited(Instant::now());
                         self.sticker_resume = true;
@@ -6969,14 +6979,10 @@ impl Worker {
                         self.sticker_failed.insert(hash);
                     }
                 }
+                let arrived = result.is_ok();
                 // The next missing ones take the freed places.
                 self.fetch_missing_stickers();
-                // Recent is sorted by use, so each arrival lands mid-grid and
-                // shifts every tile after it. Publish the batch once, instead
-                // of reshuffling the open picker under the reader (#165).
-                if self.sticker_fetches.is_empty() {
-                    self.emit_stickers();
-                }
+                self.picker_sticker_settled(arrived);
             }
             Command::MeInfo { about } => {
                 self.me_about = about;
@@ -8727,11 +8733,23 @@ impl Worker {
         if for_picker {
             // The next missing ones take the freed places.
             self.fetch_missing_stickers();
-            // Listing the shelves scans the archive; one pass per batch keeps
-            // a send queued behind many picker downloads from waiting on each.
-            if self.sticker_downloads.is_empty() {
-                self.emit_stickers();
-            }
+            self.picker_sticker_settled(result_ok);
+        }
+    }
+
+    /// Sends the picker its shelves after a picker download settles: once
+    /// every [`SHELF_REFRESH_EVERY`] arrivals, and when none is left in
+    /// flight. Listing the shelves scans the archive, and Recent is sorted
+    /// by use, so each arrival lands mid-grid and shifts the tiles after it:
+    /// a refresh per arrival would keep a send queued behind the scans and
+    /// reshuffle the open picker under the reader (#165).
+    fn picker_sticker_settled(&mut self, arrived: bool) {
+        if arrived {
+            self.sticker_arrivals += 1;
+        }
+        if self.picker_downloads() == 0 || self.sticker_arrivals >= SHELF_REFRESH_EVERY {
+            self.sticker_arrivals = 0;
+            self.emit_stickers();
         }
     }
 
@@ -16402,6 +16420,7 @@ mod receipt_tests {
             sticker_resume: false,
             sticker_clicked: HashSet::new(),
             sticker_retried: HashSet::new(),
+            sticker_arrivals: 0,
             favorites_pushing: false,
             favorites_again: false,
             favorites_recovered: true,
