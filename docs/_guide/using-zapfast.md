@@ -247,8 +247,9 @@ reply actions remain unavailable.
 Click a video to download it to the local cache and play it in its message,
 with sound, a seek bar, a speed chip, and a mute switch; round video messages
 play inside their circle. Click the speed chip to cycle 1x, 1.5x, and 2x, as on
-voice messages: the voice keeps its pitch, in mono while sped up, and the
-speed stays for the next video until ZapFast quits. Already downloaded videos play from their local file. Playback
+voice messages: voices keep their pitch, stereo sound stays stereo, and the
+speed stays for the next video until ZapFast quits. Already downloaded videos
+play from their local file. Playback
 waits for the download to finish, and the [64 MiB download limit](#attachments)
 also applies to videos. Double-click one, or use the button at the end of its
 controls, to play it over the whole window:
