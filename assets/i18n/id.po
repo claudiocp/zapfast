@@ -6,7 +6,7 @@ msgstr ""
 "Project-Id-Version: ZapFast\n"
 "Report-Msgid-Bugs-To: https://github.com/crmne/zapfast/issues/new?"
 "template=translation.yml\n"
-"POT-Creation-Date: 2026-10-13 20:43+0200\n"
+"POT-Creation-Date: 2026-10-13 20:54+0200\n"
 "PO-Revision-Date: 2026-09-22 00:00-0300\n"
 "Last-Translator: ZapFast contributors\n"
 "Language-Team: Indonesian\n"
@@ -186,54 +186,54 @@ msgstr "November"
 msgid "December"
 msgstr "Desember"
 
-#: src/ui/chats.rs:170 src/ui/chats.rs:431 src/ui/settings.rs:398
+#: src/ui/chats.rs:170 src/ui/chats.rs:428 src/ui/settings.rs:398
 msgid "Chats"
 msgstr "Pesan"
 
-#: src/ui/chats.rs:192 src/ui/chats.rs:450 src/ui/pane.rs:169
+#: src/ui/chats.rs:192 src/ui/chats.rs:447 src/ui/pane.rs:169
 msgid "Search"
 msgstr "Cari"
 
-#: src/ui/chats.rs:550
+#: src/ui/chats.rs:547
 msgid "Archived"
 msgstr "Arsip"
 
-#: src/ui/chats.rs:567
+#: src/ui/chats.rs:564
 msgid "Locked"
 msgstr "Terkunci"
 
-#: src/ui/chats.rs:625
+#: src/ui/chats.rs:622
 msgid "No favorites yet"
 msgstr "Belum ada favorit"
 
-#: src/ui/chats.rs:1032 src/app.rs:2146
+#: src/ui/chats.rs:1029 src/app.rs:2146
 msgid "Message yourself"
 msgstr "Kirim pesan ke diri sendiri"
 
-#: src/ui/chats.rs:1215
+#: src/ui/chats.rs:1212
 msgid "Draft:"
 msgstr "Draft:"
 
-#: src/ui/chats.rs:1302 src/ui/chats.rs:1668 src/ui/picker.rs:1615
+#: src/ui/chats.rs:1299 src/ui/chats.rs:1665 src/ui/picker.rs:1615
 msgid "Remove from favorites"
 msgstr "Hapus dari favorit"
 
-#: src/ui/chats.rs:1304 src/ui/chats.rs:1670 src/ui/conversation.rs:4491
+#: src/ui/chats.rs:1301 src/ui/chats.rs:1667 src/ui/conversation.rs:4491
 #: src/ui/dialogs.rs:1057 src/ui/picker.rs:1616
 msgid "Add to favorites"
 msgstr "Tambah ke favorit"
 
-#: src/ui/chats.rs:1314 src/ui/chats.rs:1694 src/ui/conversation.rs:243
+#: src/ui/chats.rs:1311 src/ui/chats.rs:1691 src/ui/conversation.rs:243
 #: src/ui/dialogs.rs:1231 src/ui/dialogs.rs:1769
 msgid "Leave group"
 msgstr "Keluar dari grup"
 
-#: src/ui/chats.rs:1315 src/ui/chats.rs:1692 src/ui/conversation.rs:241
+#: src/ui/chats.rs:1312 src/ui/chats.rs:1689 src/ui/conversation.rs:241
 #: src/ui/dialogs.rs:1229 src/ui/dialogs.rs:1767
 msgid "Leave channel"
 msgstr "Keluar dari saluran"
 
-#: src/ui/chats.rs:1330 src/ui/labels.rs:166 src/ui/labels.rs:213
+#: src/ui/chats.rs:1327 src/ui/labels.rs:166 src/ui/labels.rs:213
 msgid "Labels"
 msgstr "Label"
 
@@ -1449,43 +1449,43 @@ msgstr ""
 "Tidak terkirim: pesan yang Anda balas tidak tersedia di komputer ini. "
 "Batalkan balasan untuk mengirim tanpa kutipan."
 
-#: src/app.rs:5638
+#: src/app.rs:5639
 msgid "Added to favorites"
 msgstr "Ditambahkan ke favorit"
 
-#: src/app.rs:5713
+#: src/app.rs:5714
 msgid "Sending the sticker pack…"
 msgstr "Mengirim paket stiker…"
 
-#: src/app.rs:6006 src/ui/labels.rs:247
+#: src/app.rs:6007 src/ui/labels.rs:247
 #, rust-format
 msgid "You have {limit} labels, the most ZapFast keeps."
 msgstr "Anda memiliki {limit} label, batas maksimal yang disimpan ZapFast."
 
 #. Translators: an announcement from an account that is not on screen:
 #. the account's name, then what it announced.
-#: src/app.rs:6506
+#: src/app.rs:6507
 #, rust-format
 msgid "{}: {}"
 msgstr ""
 
-#: src/app.rs:6793
+#: src/app.rs:6794
 msgid "App lock password saved"
 msgstr "Kata sandi kunci aplikasi disimpan"
 
-#: src/app.rs:6801
+#: src/app.rs:6802
 msgid "App lock turned off"
 msgstr "Kunci aplikasi dinonaktifkan"
 
-#: src/app.rs:6926
+#: src/app.rs:6927
 msgid "This video opens in your system player"
 msgstr "Video ini dibuka di pemutar media sistem"
 
-#: src/app.rs:7358
+#: src/app.rs:7359
 msgid "Copied image"
 msgstr "Gambar disalin"
 
-#: src/app.rs:7361 src/app.rs:7366
+#: src/app.rs:7362 src/app.rs:7367
 msgid "Failed to copy image"
 msgstr "Gagal menyalin gambar"
 
